@@ -33,7 +33,7 @@ parser.add_argument('-hidden_size',type=int,default=200)
 # train
 parser.add_argument('-lr',type=float,default=1e-3)
 parser.add_argument('-batch_size',type=int,default=32)
-parser.add_argument('-epochs',type=int,default=5)
+parser.add_argument('-epochs',type=int,default=10)
 parser.add_argument('-seed',type=int,default=1)
 parser.add_argument('-train_dir',type=str,default='mydata/train.json')
 parser.add_argument('-val_dir',type=str,default='mydata/valid.json')
