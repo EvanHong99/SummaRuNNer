@@ -32,10 +32,9 @@ class Vocab():
         sents_list,targets,doc_lens = [],[],[]
         # trunc document将文件内所有句子都存到一个list
         for doc,label in zip(batch['doc'],batch['labels']):
+            # 一个个遍历batch下的文档
             sents = doc.split(split_token)
             labels = label.split(split_token)
-            # if len(sents)==0 or len(labels):
-            #     continue
             labels = [int(l) for l in labels]
             max_sent_num = min(doc_trunc,len(sents))
             sents = sents[:max_sent_num]
@@ -65,7 +64,7 @@ class Vocab():
 
         return features,targets,summaries,doc_lens
 
-    def make_predict_features(self, batch, sent_trunc=150, doc_trunc=100, split_token='. '):
+    def make_predict_features(self, batch, sent_trunc=150, doc_trunc=100, split_token='\\n'):
         sents_list, doc_lens = [],[]
         for doc in batch:
             sents = doc.split(split_token)
@@ -91,3 +90,13 @@ class Vocab():
         features = torch.LongTensor(features)
 
         return features, doc_lens
+    
+    def feature2words(self,feature):
+        # 一个feature是一个分隔符切分的短句子
+        # print(feature)
+        res=[]
+        for f in feature:
+            if f!=self.PAD_IDX and f!=self.UNK_IDX:
+                res.append(self.i2w(f))
+        # print(res)
+        return res

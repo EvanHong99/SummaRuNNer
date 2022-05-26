@@ -9,13 +9,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from torch.autograd import Variable
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader,RandomSampler,BatchSampler
 # mycode
 from torch.nn.utils import clip_grad_norm_
 # from torch.nn.utils import clip_grad_norm
 from time import time
 from tqdm import tqdm
 import traceback
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from sumeval.metrics.rouge import RougeCalculator
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [INFO] %(message)s')
 parser = argparse.ArgumentParser(description='extractive summary')
@@ -31,7 +34,7 @@ parser.add_argument('-kernel_sizes',type=str,default='3,4,5')
 parser.add_argument('-model',type=str,default='RNN_RNN')
 parser.add_argument('-hidden_size',type=int,default=200)
 # train
-parser.add_argument('-lr',type=float,default=1e-3)
+parser.add_argument('-lr',type=float,default=1e-4)
 parser.add_argument('-batch_size',type=int,default=32)
 parser.add_argument('-epochs',type=int,default=10)
 parser.add_argument('-seed',type=int,default=1)
@@ -39,7 +42,7 @@ parser.add_argument('-train_dir',type=str,default='mydata/train.json')
 parser.add_argument('-val_dir',type=str,default='mydata/valid.json')
 parser.add_argument('-embedding',type=str,default='mydata/embedding.npz')
 parser.add_argument('-word2id',type=str,default='mydata/word2id.json')
-parser.add_argument('-report_every',type=int,default=1000)
+parser.add_argument('-report_every',type=int,default=500)
 parser.add_argument('-seq_trunc',type=int,default=50)
 parser.add_argument('-max_norm',type=float,default=1.0)
 # test
@@ -69,26 +72,71 @@ torch.cuda.manual_seed(args.seed)
 torch.manual_seed(args.seed)
 random.seed(args.seed)
 numpy.random.seed(args.seed) 
+
+def cal_rouge(rouge:RougeCalculator,sum,ref):
+    rouge_1 = rouge.rouge_n(
+                summary=sum,
+                references=ref,
+                n=1)
+
+    rouge_2 = rouge.rouge_n(
+                summary=sum,
+                references=ref,
+                n=2)
+
+    rouge_l = rouge.rouge_l(
+                summary=sum,
+                references=ref)
+
+
+    return rouge_1, rouge_2, rouge_l
     
 def eval(net,vocab,data_iter,criterion):
     net.eval()
     total_loss = 0
     batch_num = 0
+    doc_num=0
+    rouge = RougeCalculator(stopwords=False, lang="zh")
+    rouge_1, rouge_2, rouge_l=0,0,0
     for batch in data_iter:
-        features,targets,_,doc_lens = vocab.make_features(batch)
+        features,targets,summaries,doc_lens = vocab.make_features(batch)#将文本转为id
+        doc_num+=len(batch)
         features,targets = Variable(features), Variable(targets.float())
         if use_gpu:
             features = features.cuda()
             targets = targets.cuda()
         probs = net(features,doc_lens)
+
+        # calc rouge
+        l=0
+        for doc_id,doc_len in enumerate(doc_lens):
+            this_doc_probs=probs[l:l+doc_len]
+            # print(f"this_doc_probs {this_doc_probs.cpu().detach().numpy()}")
+            # print(np.where(np.array(this_doc_probs.cpu().detach().numpy())>0.5))
+            for pred_sum_idx in np.where(np.array(this_doc_probs.cpu().detach().numpy())>0.5)[0]:
+                # print(f"features.cpu().data.numpy()[l+pred_sum_idx] {features.cpu().data.numpy()[l+pred_sum_idx]}")
+                # print(l+pred_sum_idx)
+                pred_sum=' '.join(vocab.feature2words(features.cpu().data.numpy()[l+pred_sum_idx]))
+                # print(pred_sum)
+                ground_truth=summaries[doc_id]
+                r1,r2,rL=cal_rouge(rouge,ground_truth,pred_sum)
+                rouge_1+=r1
+                rouge_2+=r2
+                rouge_l+=rL
+            l+=doc_len
+
         loss = criterion(probs,targets)
         # mycode
         total_loss += loss.data
         # total_loss += loss.data[0]
         batch_num += 1
     loss = total_loss / batch_num
+    rouge_1/=doc_num
+    rouge_2/=doc_num
+    rouge_l/=doc_num
+    print(f"rouge_1, rouge_2, rouge_l {rouge_1},{rouge_2},{rouge_l}")
     net.train()
-    return loss
+    return loss,probs,targets
 
 def train():
     logging.info('Loading vocab,train and val dataset.Wait a second,please')
@@ -115,9 +163,11 @@ def train():
     if use_gpu:
         net.cuda()
     # load dataset
+    train_sampler=RandomSampler(train_dataset,num_samples=int(0.1*len(train_dataset)))
     train_iter = DataLoader(dataset=train_dataset,
             batch_size=args.batch_size,
-            shuffle=True)
+            sampler=train_sampler)
+
     val_iter = DataLoader(dataset=val_dataset,
             batch_size=args.batch_size,
             shuffle=False)
@@ -129,19 +179,28 @@ def train():
     print('#Params: %.1fM' % (params))
     
     min_loss = float('inf')
+    cur_loss = float('inf')
     optimizer = torch.optim.Adam(net.parameters(),lr=args.lr)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
     net.train()
     
     for epoch in range(1,args.epochs+1):
         t1 = time() 
         for i,batch in enumerate(train_iter):
-            # print(batch)
             features,targets,summaries,doc_lens = vocab.make_features(batch)
+            # print(f'batch[0] {batch[0]}')
+            # print(f"doc {batch['doc']}")
+            # print(f"labels {batch['labels']}")
+            # print(f"summaries {summaries}")
+            # print(f"features {features.shape} {features}")
+            # print(f"targets {targets.shape} {targets}")
+            # print(f"doc_lens sum {sum(doc_lens)} {doc_lens}")
             features,targets = Variable(features), Variable(targets.float())
             if use_gpu:
                 features = features.cuda()
                 targets = targets.cuda()
             probs = net(features,doc_lens)
+            # print(f"probs {probs}")
             loss = criterion(probs,targets)
             optimizer.zero_grad()
             loss.backward()
@@ -152,12 +211,16 @@ def train():
                 print('Batch ID:%d Loss:%f' %(i,loss.data[0]))
                 continue
             if i % args.report_every == 0:
-                cur_loss = eval(net,vocab,val_iter,criterion)
+                cur_loss,_probs,_targets = eval(net,vocab,val_iter,criterion)
                 if cur_loss < min_loss:
                     min_loss = cur_loss
                     best_path = net.save()
                 logging.info('Epoch: %2d Min_Val_Loss: %f Cur_Val_Loss: %f'
                         % (epoch,min_loss,cur_loss))
+                # logging.info(f'{probs},{targets}')
+            # assert 0
+        scheduler.step(cur_loss)
+        logging.info(f"lr {optimizer.param_groups[0]['lr']}")
         t2 = time()
         logging.info('epoch Cost:%f h'%((t2-t1)/3600))
 
@@ -194,7 +257,7 @@ def test():
     time_cost = 0
     file_id = 1
     for batch in tqdm(test_iter):
-        features,_,summaries,doc_lens = vocab.make_features(batch)
+        features,tgt,summaries,doc_lens = vocab.make_features(batch)
         t1 = time()
         if use_gpu:
             probs = net(Variable(features).cuda(), doc_lens)
@@ -264,6 +327,7 @@ def predict(examples):
     time_cost = 0
     file_id = 1
     for batch in tqdm(pred_iter):
+        print(batch)
         features, doc_lens = vocab.make_predict_features(batch)
         t1 = time()
         if use_gpu:
@@ -275,6 +339,7 @@ def predict(examples):
         start = 0
         for doc_id,doc_len in enumerate(doc_lens):
             stop = start + doc_len
+            print(probs)
             prob = probs[start:stop]
             topk = min(args.topk,doc_len)
             topk_indices = prob.topk(topk)[1].cpu().data.numpy()

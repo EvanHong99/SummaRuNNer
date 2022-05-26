@@ -173,12 +173,15 @@ def my_worker(files_dir_path,mode):
         tgt=fr.readlines()
     
     gl=GreedyLabeler()
-    
+    total_score=0
     examples = []
-    for pair in zip(src,tgt):
+    for i,pair in enumerate(zip(src,tgt)):
         sents=gl.sep_ref(pair[0].strip())
         summary=pair[1].strip()
-        best,labels=gl.label(summary,sents)
+        best,labels,max_score=gl.label(summary,sents)
+        total_score+=max_score
+        if i % 500==0:
+            print(f"avg r1 = {total_score/(i+1)}")
         ex = {'doc':'\n'.join(sents).strip(),'labels':'\n'.join([str(idx) for idx in labels]),'summaries':summary.strip()}
         assert len(labels)>0 and ex['doc'][-1]!='\n'
         examples.append(ex)

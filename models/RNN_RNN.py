@@ -76,18 +76,18 @@ class RNN_RNN(BasicModule):
         # word level GRU
         H = self.args.hidden_size
         x = self.word_RNN(x)[0]# (N,2*H,L)
-        #word_out = self.avg_pool1d(x,sent_lens)
-        word_out = self.max_pool1d(x,sent_lens)
+        word_out = self.avg_pool1d(x,sent_lens)
+        # word_out = self.max_pool1d(x,sent_lens)
         # make sent features(pad with zeros)
         x = self.pad_doc(word_out,doc_lens)
 
         # sent level GRU
         sent_out = self.sent_RNN(x)[0]# (B,max_doc_len,2*H)
-        #docs = self.avg_pool1d(sent_out,doc_lens)                               # (B,2*H)
-        docs = self.max_pool1d(sent_out,doc_lens)                                # (B,2*H)
+        docs = self.avg_pool1d(sent_out,doc_lens)  # (B,2*H)
+        # docs = self.max_pool1d(sent_out,doc_lens) # (B,2*H)
         probs = []
         for index,doc_len in enumerate(doc_lens):
-            valid_hidden = sent_out[index,:doc_len,:]                            # (doc_len,2*H)
+            valid_hidden = sent_out[index,:doc_len,:] # (doc_len,2*H)
             doc = F.tanh(self.fc(docs[index])).unsqueeze(0)
             s = Variable(torch.zeros(1,2*H))
             if self.args.device is not None:
