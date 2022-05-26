@@ -10,9 +10,12 @@ import torch.nn.functional as F
 import numpy as np
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
-from torch.nn.utils import clip_grad_norm
+# mycode
+from torch.nn.utils import clip_grad_norm_
+# from torch.nn.utils import clip_grad_norm
 from time import time
 from tqdm import tqdm
+import traceback
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [INFO] %(message)s')
 parser = argparse.ArgumentParser(description='extractive summary')
@@ -32,19 +35,19 @@ parser.add_argument('-lr',type=float,default=1e-3)
 parser.add_argument('-batch_size',type=int,default=32)
 parser.add_argument('-epochs',type=int,default=5)
 parser.add_argument('-seed',type=int,default=1)
-parser.add_argument('-train_dir',type=str,default='data/train.json')
-parser.add_argument('-val_dir',type=str,default='data/val.json')
-parser.add_argument('-embedding',type=str,default='data/embedding.npz')
-parser.add_argument('-word2id',type=str,default='data/word2id.json')
-parser.add_argument('-report_every',type=int,default=1500)
+parser.add_argument('-train_dir',type=str,default='mydata/train.json')
+parser.add_argument('-val_dir',type=str,default='mydata/valid.json')
+parser.add_argument('-embedding',type=str,default='mydata/embedding.npz')
+parser.add_argument('-word2id',type=str,default='mydata/word2id.json')
+parser.add_argument('-report_every',type=int,default=1000)
 parser.add_argument('-seq_trunc',type=int,default=50)
 parser.add_argument('-max_norm',type=float,default=1.0)
 # test
 parser.add_argument('-load_dir',type=str,default='checkpoints/RNN_RNN_seed_1.pt')
-parser.add_argument('-test_dir',type=str,default='data/test.json')
+parser.add_argument('-test_dir',type=str,default='mydata/test.json')
 parser.add_argument('-ref',type=str,default='outputs/ref')
 parser.add_argument('-hyp',type=str,default='outputs/hyp')
-parser.add_argument('-filename',type=str,default='x.txt') # TextFile to be summarized
+parser.add_argument('-filename',type=str,default='x.txt') # deprecated, TextFile to be summarized
 parser.add_argument('-topk',type=int,default=15)
 # device
 parser.add_argument('-device',type=int)
@@ -61,6 +64,7 @@ if torch.cuda.is_available() and not use_gpu:
 # set cuda device and seed
 if use_gpu:
     torch.cuda.set_device(args.device)
+    print("using gpu")
 torch.cuda.manual_seed(args.seed)
 torch.manual_seed(args.seed)
 random.seed(args.seed)
@@ -78,7 +82,9 @@ def eval(net,vocab,data_iter,criterion):
             targets = targets.cuda()
         probs = net(features,doc_lens)
         loss = criterion(probs,targets)
-        total_loss += loss.data[0]
+        # mycode
+        total_loss += loss.data
+        # total_loss += loss.data[0]
         batch_num += 1
     loss = total_loss / batch_num
     net.train()
@@ -126,10 +132,11 @@ def train():
     optimizer = torch.optim.Adam(net.parameters(),lr=args.lr)
     net.train()
     
-    t1 = time() 
     for epoch in range(1,args.epochs+1):
+        t1 = time() 
         for i,batch in enumerate(train_iter):
-            features,targets,_,doc_lens = vocab.make_features(batch)
+            # print(batch)
+            features,targets,summaries,doc_lens = vocab.make_features(batch)
             features,targets = Variable(features), Variable(targets.float())
             if use_gpu:
                 features = features.cuda()
@@ -138,7 +145,8 @@ def train():
             loss = criterion(probs,targets)
             optimizer.zero_grad()
             loss.backward()
-            clip_grad_norm(net.parameters(), args.max_norm)
+            clip_grad_norm_(net.parameters(), args.max_norm)
+            # clip_grad_norm(net.parameters(), args.max_norm)
             optimizer.step()
             if args.debug:
                 print('Batch ID:%d Loss:%f' %(i,loss.data[0]))
@@ -150,8 +158,8 @@ def train():
                     best_path = net.save()
                 logging.info('Epoch: %2d Min_Val_Loss: %f Cur_Val_Loss: %f'
                         % (epoch,min_loss,cur_loss))
-    t2 = time()
-    logging.info('Total Cost:%f h'%((t2-t1)/3600))
+        t2 = time()
+        logging.info('epoch Cost:%f h'%((t2-t1)/3600))
 
 def test():
      
@@ -197,12 +205,24 @@ def test():
         start = 0
         for doc_id,doc_len in enumerate(doc_lens):
             stop = start + doc_len
-            prob = probs[start:stop]
+            if doc_len==1:
+                # print(probs.cpu())
+                # print(probs.cpu().data)
+                # print(probs.cpu().data.numpy())
+                # print()
+                # print(probs.cpu().data.numpy()[start:stop])
+                prob = probs
+            else:
+                prob = probs[start:stop]
             topk = min(args.topk,doc_len)
             topk_indices = prob.topk(topk)[1].cpu().data.numpy()
-            topk_indices.sort()
+            if doc_len!=1:
+                topk_indices.sort()
             doc = batch['doc'][doc_id].split('\n')[:doc_len]
-            hyp = [doc[index] for index in topk_indices]
+            if doc_len==1:
+                hyp = [doc[topk_indices]]
+            else:
+                hyp = [doc[index] for index in topk_indices]
             ref = summaries[doc_id]
             with open(os.path.join(args.ref,str(file_id)+'.txt'), 'w') as f:
                 f.write(ref)
@@ -210,6 +230,8 @@ def test():
                 f.write('\n'.join(hyp))
             start = stop
             file_id = file_id + 1
+
+
     print('Speed: %.2f docs / s' % (doc_num / time_cost))
 
 

@@ -23,11 +23,19 @@ class Vocab():
             return self.UNK_IDX
     
     def make_features(self,batch,sent_trunc=50,doc_trunc=100,split_token='\n'):
+        """
+        将文本转为id
+        :param batch:源data.json的一个个列表
+        :param sent_trunc
+        :param doc_trunc:每篇文档最多100个句子
+        """
         sents_list,targets,doc_lens = [],[],[]
-        # trunc document
+        # trunc document将文件内所有句子都存到一个list
         for doc,label in zip(batch['doc'],batch['labels']):
             sents = doc.split(split_token)
             labels = label.split(split_token)
+            # if len(sents)==0 or len(labels):
+            #     continue
             labels = [int(l) for l in labels]
             max_sent_num = min(doc_trunc,len(sents))
             sents = sents[:max_sent_num]
@@ -35,7 +43,7 @@ class Vocab():
             sents_list += sents
             targets += labels
             doc_lens.append(len(sents))
-        # trunc or pad sent
+        # trunc or pad sent 遍历所有句子来确认最长句子长度，以pad or trunc
         max_sent_len = 0
         batch_sents = []
         for sent in sents_list:
@@ -47,6 +55,7 @@ class Vocab():
         
         features = []
         for sent in batch_sents:
+            # 用id表示并pad
             feature = [self.w2i(w) for w in sent] + [self.PAD_IDX for _ in range(max_sent_len-len(sent))]
             features.append(feature)
         

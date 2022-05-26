@@ -2,6 +2,8 @@
 
 import os
 from pyrouge import Rouge155
+# from rouge import Rouge
+
 
 def remove_broken_files():
     error_id = []
@@ -24,14 +26,18 @@ def rouge():
     r = Rouge155()
     r.home_dir = '.'
     r.system_dir = 'hyp'
-    r.model_dir =  'ref'
+    r.model_dir = 'ref'
 
     r.system_filename_pattern = '(\d+).txt'
     r.model_filename_pattern = '#ID#.txt'
 
-    command = '-e /YOUR/PATH/TO/ROUGE-1.5.5/data -a -c 95 -m -n 2 -b 75'
+    command = '-e /content/drive/MyDrive/NLP/nlp_text_summarization/pyrouge/tools/ROUGE-1.5.5/data -a -c 95 -m -n 2 -b 75'
+    # output = r.convert_and_evaluate()
     output = r.convert_and_evaluate(rouge_args=command)
     print(output)
+
+def my_rouge():
+    pass
 
 if __name__ == '__main__':
     remove_broken_files()

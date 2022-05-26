@@ -49,7 +49,8 @@ class RNN_RNN(BasicModule):
         out = []
         for index,t in enumerate(x):
             t = t[:seq_lens[index],:]
-            t = torch.t(t).unsqueeze(0)
+            t = torch.t(t).unsqueeze(0)#在当前最低纬度1之前再插入一个维度，
+            # print(index,t.size(2),t.size())
             out.append(F.max_pool1d(t,t.size(2)))
         
         out = torch.cat(out).squeeze(2)
@@ -65,18 +66,23 @@ class RNN_RNN(BasicModule):
         out = torch.cat(out).squeeze(2)
         return out
     def forward(self,x,doc_lens):
-        sent_lens = torch.sum(torch.sign(x),dim=1).data 
-        x = self.embed(x)                                                      # (N,L,D)
+        # print(x)
+        # print(x.shape)
+        # print(doc_lens)
+        sent_lens = torch.sum(torch.sign(x),dim=1).data
+        # print(sent_lens)
+        x = self.embed(x) 
+        # print(x)# (N,L,D)
         # word level GRU
         H = self.args.hidden_size
-        x = self.word_RNN(x)[0]                                                 # (N,2*H,L)
+        x = self.word_RNN(x)[0]# (N,2*H,L)
         #word_out = self.avg_pool1d(x,sent_lens)
         word_out = self.max_pool1d(x,sent_lens)
         # make sent features(pad with zeros)
         x = self.pad_doc(word_out,doc_lens)
 
         # sent level GRU
-        sent_out = self.sent_RNN(x)[0]                                           # (B,max_doc_len,2*H)
+        sent_out = self.sent_RNN(x)[0]# (B,max_doc_len,2*H)
         #docs = self.avg_pool1d(sent_out,doc_lens)                               # (B,2*H)
         docs = self.max_pool1d(sent_out,doc_lens)                                # (B,2*H)
         probs = []
