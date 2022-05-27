@@ -173,19 +173,27 @@ def my_worker(files_dir_path,mode):
         tgt=fr.readlines()
     
     gl=GreedyLabeler()
-    total_score=0
+    total_score_r1=0
+    total_score_r2=0
+    total_score_rL=0
     examples = []
     for i,pair in enumerate(zip(src,tgt)):
         sents=gl.sep_ref(pair[0].strip())
         summary=pair[1].strip()
         best,labels,max_score=gl.label(summary,sents)
-        total_score+=max_score
+        total_score_r1+=max_score[0]
+        total_score_r2+=max_score[1]
+        total_score_rL+=max_score[2]
         if i % 500==0:
-            print(f"avg r1 = {total_score/(i+1)}")
+            print(f"avg r1 = {total_score_r1/(i+1)}")
+            print(f"avg r2 = {total_score_r2/(i+1)}")
+            print(f"avg rL = {total_score_rL/(i+1)}")
         ex = {'doc':'\n'.join(sents).strip(),'labels':'\n'.join([str(idx) for idx in labels]),'summaries':summary.strip()}
         assert len(labels)>0 and ex['doc'][-1]!='\n'
         examples.append(ex)
-
+    print(f"{mode} max avg r1 score = {total_score_r1/len(tgt)}")
+    print(f"{mode} max avg r2 score = {total_score_r2/len(tgt)}")
+    print(f"{mode} max avg rL score = {total_score_rL/len(tgt)}")
     return examples
 
 
@@ -211,12 +219,12 @@ if __name__ == '__main__':
     parser.add_argument('-build_vocab',action='store_true')
     parser.add_argument('-my_build_vocab',action='store_true')
     # parser.add_argument('-embed', type=str, default='data/100.w2v')
-    parser.add_argument('-vocab', type=str, default='/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/mydata/embedding.npz')
-    parser.add_argument('-word2id',type=str,default='/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/mydata/word2id.json')
-
+    dir_name='mydata'
+    parser.add_argument('-vocab', type=str, default=f'/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/{dir_name}/embedding.npz')
+    parser.add_argument('-word2id',type=str,default=f'/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/{dir_name}/word2id.json')
     parser.add_argument('-worker_num',type=int,default=1)
-    parser.add_argument('-source_dir', type=str, default='/content/drive/MyDrive/nlp_project/nlp_text_summarization/prep_data/')
-    parser.add_argument('-output_dir', type=str, default='/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/mydata/')
+    parser.add_argument('-source_dir', type=str, default=f'/content/drive/MyDrive/nlp_project/nlp_text_summarization/prep_data/')
+    parser.add_argument('-output_dir', type=str, default=f'/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/{dir_name}/')
 
     args = parser.parse_args()
     

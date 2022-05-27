@@ -34,7 +34,7 @@ parser.add_argument('-kernel_sizes',type=str,default='3,4,5')
 parser.add_argument('-model',type=str,default='RNN_RNN')
 parser.add_argument('-hidden_size',type=int,default=200)
 # train
-parser.add_argument('-lr',type=float,default=1e-4)
+parser.add_argument('-lr',type=float,default=1e-3)
 parser.add_argument('-batch_size',type=int,default=32)
 parser.add_argument('-epochs',type=int,default=10)
 parser.add_argument('-seed',type=int,default=1)
@@ -100,7 +100,6 @@ def eval(net,vocab,data_iter,criterion):
     rouge_1, rouge_2, rouge_l=0,0,0
     for batch in data_iter:
         features,targets,summaries,doc_lens = vocab.make_features(batch)#将文本转为id
-        doc_num+=len(batch)
         features,targets = Variable(features), Variable(targets.float())
         if use_gpu:
             features = features.cuda()
@@ -110,19 +109,27 @@ def eval(net,vocab,data_iter,criterion):
         # calc rouge
         l=0
         for doc_id,doc_len in enumerate(doc_lens):
+            doc_num+=1
+
             this_doc_probs=probs[l:l+doc_len]
             # print(f"this_doc_probs {this_doc_probs.cpu().detach().numpy()}")
             # print(np.where(np.array(this_doc_probs.cpu().detach().numpy())>0.5))
+            pred_sum=''
             for pred_sum_idx in np.where(np.array(this_doc_probs.cpu().detach().numpy())>0.5)[0]:
                 # print(f"features.cpu().data.numpy()[l+pred_sum_idx] {features.cpu().data.numpy()[l+pred_sum_idx]}")
                 # print(l+pred_sum_idx)
                 pred_sum=' '.join(vocab.feature2words(features.cpu().data.numpy()[l+pred_sum_idx]))
-                # print(pred_sum)
-                ground_truth=summaries[doc_id]
-                r1,r2,rL=cal_rouge(rouge,ground_truth,pred_sum)
-                rouge_1+=r1
-                rouge_2+=r2
-                rouge_l+=rL
+            if pred_sum=='':
+                for pred_sum_idx in np.where(np.array(this_doc_probs.cpu().detach().numpy())==np.max(this_doc_probs.cpu().detach().numpy()))[0]:
+                    pred_sum=' '.join(vocab.feature2words(features.cpu().data.numpy()[l+pred_sum_idx]))
+
+            ground_truth=summaries[doc_id]
+            logging.info(f"pred_sum {pred_sum}")
+            logging.info(f"ground_truth {ground_truth}")
+            r1,r2,rL=cal_rouge(rouge,ground_truth,pred_sum)
+            rouge_1+=r1
+            rouge_2+=r2
+            rouge_l+=rL
             l+=doc_len
 
         loss = criterion(probs,targets)
@@ -131,10 +138,12 @@ def eval(net,vocab,data_iter,criterion):
         # total_loss += loss.data[0]
         batch_num += 1
     loss = total_loss / batch_num
+    logging.info(f"doc_num {doc_num}")
+
     rouge_1/=doc_num
     rouge_2/=doc_num
     rouge_l/=doc_num
-    print(f"rouge_1, rouge_2, rouge_l {rouge_1},{rouge_2},{rouge_l}")
+    logging.info(f"rouge_1, rouge_2, rouge_l {rouge_1},{rouge_2},{rouge_l}")
     net.train()
     return loss,probs,targets
 
@@ -294,7 +303,12 @@ def test():
             start = stop
             file_id = file_id + 1
 
+    logging.info(f"doc_num {doc_num}")
 
+    rouge_1/=doc_num
+    rouge_2/=doc_num
+    rouge_l/=doc_num
+    logging.info(f"rouge_1, rouge_2, rouge_l {rouge_1},{rouge_2},{rouge_l}")
     print('Speed: %.2f docs / s' % (doc_num / time_cost))
 
 

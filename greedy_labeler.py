@@ -9,44 +9,72 @@ class GreedyLabeler(object):
     """
     贪心算法用于提取一篇文章中可以作为摘要的句子
     """
-    def __init__(self,sep:str=".。!！?？；;，,：:"):
+    def __init__(self,sep:str=".。!！?？；;，,"):
         self.sep=sep
         self.rouge = RougeCalculator(stopwords=False, lang="zh")
 
     def sep_ref(self,ref:str)->list:
-        reg=rf'([{self.sep}])' #用来保留分隔符
+        reg=rf'[{self.sep}]' #用来保留分隔符
+        # reg=rf'([{self.sep}])' #用来保留分隔符
         splitted=re.split(reg,ref.strip())
-        if len(splitted)%2==1:
-            return ["".join(i).strip() for i in zip(splitted[0::2],splitted[1::2])]+[splitted[-1].strip()] #将标点合并到原句子
-        return ["".join(i).strip() for i in zip(splitted[0::2],splitted[1::2])] #将标点合并到原句子
+        # if len(splitted)%2==1:
+        #     return ["".join(i).strip() for i in zip(splitted[0::2],splitted[1::2])]+[splitted[-1].strip()] #将标点合并到原句子
+        # return ["".join(i).strip() for i in zip(splitted[0::2],splitted[1::2])] #将标点合并到原句子
+        return [s.strip() for s in splitted]
+
+    def is_newly_best(self,strtgy,max_r1,max_r2,max_rL,new_r1,new_r2,new_rL):
+        if strtgy =="rouge_1":
+            if new_r1>max_r1: return True
+        elif strtgy =="rouge_2":
+            if new_r2>max_r2: return True
+        elif strtgy =="rouge_L":
+            if new_rL>max_rL: return True
+        elif strtgy =="rouge_all":
+            if (new_r1,new_r2,new_rL)>(max_r1,max_r2,max_rL): return True
+        return False
+
 
     def label(self,summary:str,ref_list:list,strtgy='rouge_1'):
         """
         按照rouge1最大化的默认规则来构建label
         """
+        assert strtgy in ['rouge_1','rouge_2','rouge_L','rouge_all']
         best=[]
         idx=[0]*len(ref_list)
-        max_score=0
+        max_r1=0
+        max_r2=0
+        max_rL=0
         # 迭代len步
         for j in range(len(ref_list)):
             append_idx=-1
             append=False
             for i,ref in enumerate(ref_list):
                 temp=best+[ref]
-                new_score=self.rouge.rouge_n(
+                new_r1=self.rouge.rouge_n(
                     summary=summary,
                     references=" ".join(temp),
                     n=1)
-                if new_score>max_score:
-                    max_score=new_score
+                new_r2=self.rouge.rouge_n(
+                    summary=summary,
+                    references=" ".join(temp),
+                    n=2)
+                new_rL=self.rouge.rouge_l(
+                    summary=summary,
+                    references=" ".join(temp))
+                if new_r1>max_r1:
+                    max_r1=new_r1
+                if new_r2>max_r2:
+                    max_r2=new_r2
+                if new_rL>max_rL:
+                    max_rL=new_rL
+                append=self.is_newly_best(strtgy,max_r1,max_r2,max_rL,new_r1,new_r2,new_rL)            
+                if append:
                     append_idx=i
-                    append=True
-            if append:
-                best.append(ref_list[append_idx])
-                idx[append_idx]=1
+                    best.append(ref_list[append_idx])
+                    idx[append_idx]=1
             else:
                 break
-        return best,idx,max_score
+        return best,idx,tuple([max_r1,max_r2,max_rL])
 
 if __name__=='__main__':
     sum="雅虎 宣布 剥离 阿里巴巴 股份"
