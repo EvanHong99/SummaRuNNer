@@ -219,11 +219,12 @@ if __name__ == '__main__':
     parser.add_argument('-build_vocab',action='store_true')
     parser.add_argument('-my_build_vocab',action='store_true')
     # parser.add_argument('-embed', type=str, default='data/100.w2v')
-    dir_name='mydata'
+    dir_name='testdata'
     parser.add_argument('-vocab', type=str, default=f'/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/{dir_name}/embedding.npz')
     parser.add_argument('-word2id',type=str,default=f'/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/{dir_name}/word2id.json')
     parser.add_argument('-worker_num',type=int,default=1)
-    parser.add_argument('-source_dir', type=str, default=f'/content/drive/MyDrive/nlp_project/nlp_text_summarization/prep_data/')
+    parser.add_argument('-source_dir', type=str, default=f'/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/test_prep_data/')
+    # parser.add_argument('-source_dir', type=str, default=f'/content/drive/MyDrive/nlp_project/nlp_text_summarization/prep_data/')
     parser.add_argument('-output_dir', type=str, default=f'/content/drive/MyDrive/NLP/nlp_text_summarization/SummaRuNNer/{dir_name}/')
 
     args = parser.parse_args()

@@ -34,20 +34,22 @@ parser.add_argument('-kernel_sizes',type=str,default='3,4,5')
 parser.add_argument('-model',type=str,default='RNN_RNN')
 parser.add_argument('-hidden_size',type=int,default=200)
 # train
+# dir_name='mydata_withsep'
+dir_name='mydata'
 parser.add_argument('-lr',type=float,default=1e-3)
 parser.add_argument('-batch_size',type=int,default=32)
 parser.add_argument('-epochs',type=int,default=10)
 parser.add_argument('-seed',type=int,default=1)
-parser.add_argument('-train_dir',type=str,default='mydata/train.json')
-parser.add_argument('-val_dir',type=str,default='mydata/valid.json')
-parser.add_argument('-embedding',type=str,default='mydata/embedding.npz')
-parser.add_argument('-word2id',type=str,default='mydata/word2id.json')
+parser.add_argument('-train_dir',type=str,default=f'{dir_name}/train.json')
+parser.add_argument('-val_dir',type=str,default=f'{dir_name}/valid.json')
+parser.add_argument('-embedding',type=str,default=f'{dir_name}/embedding.npz')
+parser.add_argument('-word2id',type=str,default=f'{dir_name}/word2id.json')
 parser.add_argument('-report_every',type=int,default=500)
 parser.add_argument('-seq_trunc',type=int,default=50)
 parser.add_argument('-max_norm',type=float,default=1.0)
 # test
 parser.add_argument('-load_dir',type=str,default='checkpoints/RNN_RNN_seed_1.pt')
-parser.add_argument('-test_dir',type=str,default='mydata/test.json')
+parser.add_argument('-test_dir',type=str,default=f'{dir_name}/test.json')
 parser.add_argument('-ref',type=str,default='outputs/ref')
 parser.add_argument('-hyp',type=str,default='outputs/hyp')
 parser.add_argument('-filename',type=str,default='x.txt') # deprecated, TextFile to be summarized
@@ -119,7 +121,7 @@ def eval(net,vocab,data_iter,criterion):
                 # print(f"features.cpu().data.numpy()[l+pred_sum_idx] {features.cpu().data.numpy()[l+pred_sum_idx]}")
                 # print(l+pred_sum_idx)
                 pred_sum=' '.join(vocab.feature2words(features.cpu().data.numpy()[l+pred_sum_idx]))
-            if pred_sum=='':
+            if pred_sum=='':#保证至少有一句话为摘要
                 for pred_sum_idx in np.where(np.array(this_doc_probs.cpu().detach().numpy())==np.max(this_doc_probs.cpu().detach().numpy()))[0]:
                     pred_sum=' '.join(vocab.feature2words(features.cpu().data.numpy()[l+pred_sum_idx]))
 
@@ -197,7 +199,6 @@ def train():
         t1 = time() 
         for i,batch in enumerate(train_iter):
             features,targets,summaries,doc_lens = vocab.make_features(batch)
-            # print(f'batch[0] {batch[0]}')
             # print(f"doc {batch['doc']}")
             # print(f"labels {batch['labels']}")
             # print(f"summaries {summaries}")
@@ -209,6 +210,7 @@ def train():
                 features = features.cuda()
                 targets = targets.cuda()
             probs = net(features,doc_lens)
+            # assert 0
             # print(f"probs {probs}")
             loss = criterion(probs,targets)
             optimizer.zero_grad()

@@ -33,9 +33,14 @@ class Vocab():
         # trunc document将文件内所有句子都存到一个list
         for doc,label in zip(batch['doc'],batch['labels']):
             # 一个个遍历batch下的文档
-            sents = doc.split(split_token)
+            sents = [s.strip() for s in doc.split(split_token)]
             labels = label.split(split_token)
             labels = [int(l) for l in labels]
+            # for sent in sents:
+            #     if len(sent)==0:
+            #         print(f"labels {labels}")
+            #         print(f"doc {doc}")
+            #         raise Exception("len(sent)==0")
             max_sent_num = min(doc_trunc,len(sents))
             sents = sents[:max_sent_num]
             labels = labels[:max_sent_num]

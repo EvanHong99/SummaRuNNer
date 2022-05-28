@@ -9,18 +9,22 @@ class GreedyLabeler(object):
     """
     贪心算法用于提取一篇文章中可以作为摘要的句子
     """
-    def __init__(self,sep:str=".。!！?？；;，,"):
+    def __init__(self,sep:str="。!！?？；;，,"):
         self.sep=sep
         self.rouge = RougeCalculator(stopwords=False, lang="zh")
 
     def sep_ref(self,ref:str)->list:
-        reg=rf'[{self.sep}]' #用来保留分隔符
+        reg=rf'[{self.sep}]' 
         # reg=rf'([{self.sep}])' #用来保留分隔符
-        splitted=re.split(reg,ref.strip())
+        splitted=[]
+        for s in re.split(reg,ref.strip()):
+            if len(s.strip())!=0:
+                splitted.append(s)
         # if len(splitted)%2==1:
         #     return ["".join(i).strip() for i in zip(splitted[0::2],splitted[1::2])]+[splitted[-1].strip()] #将标点合并到原句子
         # return ["".join(i).strip() for i in zip(splitted[0::2],splitted[1::2])] #将标点合并到原句子
-        return [s.strip() for s in splitted]
+
+        return splitted
 
     def is_newly_best(self,strtgy,max_r1,max_r2,max_rL,new_r1,new_r2,new_rL):
         if strtgy =="rouge_1":
@@ -61,14 +65,11 @@ class GreedyLabeler(object):
                 new_rL=self.rouge.rouge_l(
                     summary=summary,
                     references=" ".join(temp))
-                if new_r1>max_r1:
-                    max_r1=new_r1
-                if new_r2>max_r2:
-                    max_r2=new_r2
-                if new_rL>max_rL:
-                    max_rL=new_rL
                 append=self.is_newly_best(strtgy,max_r1,max_r2,max_rL,new_r1,new_r2,new_rL)            
                 if append:
+                    max_r1=new_r1
+                    max_r2=new_r2
+                    max_rL=new_rL
                     append_idx=i
                     best.append(ref_list[append_idx])
                     idx[append_idx]=1
