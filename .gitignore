@@ -7,11 +7,18 @@ checkpoints/*
 data/*
 !data/.placeholder
 
+*data*/*
+!mydata/
+
+*tar.gz
+
 outputs/hyp/*
 !outputs/hyp/.placeholder
 
 outputs/ref/*
 !outputs/ref/.placeholder
+
+outputs/*
 
 .DS_Store
 
