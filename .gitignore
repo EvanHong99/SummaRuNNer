@@ -8,7 +8,9 @@ data/*
 !data/.placeholder
 
 *data*/*
-!mydata/
+!mydata/test.json
+!mydata/valid.json
+!mydata/word2id.json
 
 *tar.gz
 
